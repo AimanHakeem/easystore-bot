@@ -1,6 +1,6 @@
-# EasyStore Bot for Automated Checkout
+# EasyStore Automated Checkout
 
-This project features a bot designed to automate the checkout process on EasyStore, an e-commerce platform in Malaysia. By leveraging this bot, users can streamline their shopping experience, ensuring faster and more efficient purchases.
+This project features a program designed to automate the checkout process on EasyStore, an e-commerce platform in Malaysia. By leveraging this bot, users can streamline their shopping experience, ensuring faster and more efficient purchases.
 
 ## Roadmap
 

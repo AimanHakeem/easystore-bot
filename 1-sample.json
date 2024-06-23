@@ -1,0 +1,221 @@
+{
+    "id": 1629084,
+    "handle": "feature-on-homepage",
+    "name": "Feature on homepage",
+    "title": "Feature on homepage",
+    "url": "/collections/feature-on-homepage",
+    "description": "",
+    "content": "",
+    "featured_image": {
+        "src": null
+    },
+    "products": [
+        {
+            "id": 12017155,
+            "handle": "peak-kl-4eva-cap",
+            "name": "PEAK.KL 4Ever Cap",
+            "title": "PEAK.KL 4Ever Cap",
+            "url": "/products/peak-kl-4eva-cap",
+            "price": 159,
+            "price_min": "159.0",
+            "price_max": "159.0",
+            "price_varies": false,
+            "compare_at_price": 0,
+            "compare_at_price_min": "0.0",
+            "compare_at_price_max": "0.0",
+            "compare_at_price_varies": false,
+            "available": true,
+            "options_with_values": [],
+            "options_by_name": [],
+            "options": [
+                "Title"
+            ],
+            "has_only_default_variant": true,
+            "sole_variant_id": 55601166,
+            "variants": [
+                {
+                    "id": 55601166,
+                    "title": "Default Title",
+                    "sku": "",
+                    "taxable": false,
+                    "barcode": null,
+                    "available": true,
+                    "inventory_quantity": 118,
+                    "featured_image": {
+                        "id": 73426390,
+                        "alt": "IMG_8510",
+                        "img_url": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                        "src": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                        "height": 540,
+                        "width": 540,
+                        "position": 1,
+                        "type": "Images"
+                    },
+                    "price": 15900,
+                    "compare_at_price": 0,
+                    "is_enabled": true,
+                    "options": [
+                        "Default Title"
+                    ],
+                    "option1": "Default Title",
+                    "option2": null,
+                    "option3": null
+                }
+            ],
+            "selected_variant": {
+                "id": 55601166,
+                "title": "Default Title",
+                "sku": "",
+                "taxable": false,
+                "barcode": null,
+                "available": true,
+                "inventory_quantity": 118,
+                "featured_image": {
+                    "id": 73426390,
+                    "alt": "IMG_8510",
+                    "img_url": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "src": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "height": 540,
+                    "width": 540,
+                    "position": 1,
+                    "type": "Images"
+                },
+                "price": 15900,
+                "compare_at_price": 0,
+                "is_enabled": true,
+                "options": [
+                    "Default Title"
+                ],
+                "option1": "Default Title",
+                "option2": null,
+                "option3": null
+            },
+            "first_available_variant": {
+                "id": 55601166,
+                "title": "Default Title",
+                "sku": "",
+                "taxable": false,
+                "barcode": null,
+                "available": true,
+                "inventory_quantity": 118,
+                "featured_image": {
+                    "id": 73426390,
+                    "alt": "IMG_8510",
+                    "img_url": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "src": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "height": 540,
+                    "width": 540,
+                    "position": 1,
+                    "type": "Images"
+                },
+                "price": 15900,
+                "compare_at_price": 0,
+                "is_enabled": true,
+                "options": [
+                    "Default Title"
+                ],
+                "option1": "Default Title",
+                "option2": null,
+                "option3": null
+            },
+            "selected_or_first_available_variant": {
+                "id": 55601166,
+                "title": "Default Title",
+                "sku": "",
+                "taxable": false,
+                "barcode": null,
+                "available": true,
+                "inventory_quantity": 118,
+                "featured_image": {
+                    "id": 73426390,
+                    "alt": "IMG_8510",
+                    "img_url": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "src": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "height": 540,
+                    "width": 540,
+                    "position": 1,
+                    "type": "Images"
+                },
+                "price": 15900,
+                "compare_at_price": 0,
+                "is_enabled": true,
+                "options": [
+                    "Default Title"
+                ],
+                "option1": "Default Title",
+                "option2": null,
+                "option3": null
+            },
+            "img_url": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+            "featured_image": {
+                "id": 73426390,
+                "alt": "IMG_8510",
+                "img_url": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                "src": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                "height": 540,
+                "width": 540,
+                "position": 1,
+                "type": "Images"
+            },
+            "secondary_image": {
+                "id": 73426388,
+                "alt": "IMG_8526",
+                "img_url": "https://cdn.store-assets.com/s/652084/i/73426388.jpeg",
+                "src": "https://cdn.store-assets.com/s/652084/i/73426388.jpeg",
+                "height": 540,
+                "width": 540,
+                "position": 2,
+                "type": "Images"
+            },
+            "images": [
+                {
+                    "id": 73426390,
+                    "alt": "IMG_8510",
+                    "img_url": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "src": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "height": 540,
+                    "width": 540,
+                    "position": 1,
+                    "type": "Images"
+                },
+                {
+                    "id": 73426388,
+                    "alt": "IMG_8526",
+                    "img_url": "https://cdn.store-assets.com/s/652084/i/73426388.jpeg",
+                    "src": "https://cdn.store-assets.com/s/652084/i/73426388.jpeg",
+                    "height": 540,
+                    "width": 540,
+                    "position": 2,
+                    "type": "Images"
+                }
+            ],
+            "media": [
+                {
+                    "id": 73426390,
+                    "alt": "IMG_8510",
+                    "img_url": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "src": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                    "height": 540,
+                    "width": 540,
+                    "position": 1,
+                    "type": "Images"
+                }
+            ],
+            "featured_media": {
+                "id": 73426390,
+                "alt": "IMG_8510",
+                "img_url": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                "src": "https://cdn.store-assets.com/s/652084/i/73426390.jpeg",
+                "height": 540,
+                "width": 540,
+                "position": 1,
+                "type": "Images"
+            },
+            "metafields": [],
+            "expires": null,
+            "published_at": "2024-06-03T20:00:00.000+08:00",
+            "created_at": "2024-06-03T16:49:00.000+08:00",
+            "is_wishlisted": null
+        }
+    ]
+}

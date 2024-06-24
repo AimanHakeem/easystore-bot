@@ -7,8 +7,9 @@ import (
 )
 
 type Site struct {
-	Site string `json:"site"`
-	Link string `json:"link"`
+	Site        string `json:"site"`
+	Link        string `json:"link"`
+	ProductLink string `json:"productlink"`
 }
 
 var sites []Site
@@ -33,4 +34,13 @@ func GetSiteLink(siteName string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("site not found: %s", siteName)
+}
+
+func GetProductLink(siteName string) (string, error) {
+	for _, site := range sites {
+		if site.Site == siteName {
+			return site.ProductLink, nil
+		}
+	}
+	return "", fmt.Errorf("JSON Product endpoint not found: %s", siteName)
 }

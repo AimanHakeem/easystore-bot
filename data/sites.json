@@ -1,11 +1,23 @@
 [
     {
       "site": "clairvoyant",
-      "link": "https://byclairvoyant.com"
+      "link": "https://byclairvoyant.com",
+      "productlink": "https://byclairvoyant.com/collections/feature-on-homepage"
     },
     {
       "site": "peakkl",
-      "link": "https://peakkl.com"
+      "link": "https://www.peakkl.com",
+      "productlink": "https://www.peakkl.com/collections/collection"
+    },
+    {
+      "site": "opt",
+      "link": "https://www.oneplustwo.my",
+      "productlink": "https://www.oneplustwo.my/collections/all-products"
+    },
+    {
+      "site": "ryw",
+      "link": "https://www.rywofficial.com",
+      "productlink": "https://www.rywofficial.com/collections/new-arrivals"
     }
   ]
   

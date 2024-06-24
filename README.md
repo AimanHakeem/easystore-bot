@@ -5,7 +5,7 @@ This project features a program designed to automate the checkout process on Eas
 ## Roadmap
 
 - Product endpoint response ✔️
-- Monitoring product 🚧
+- Monitoring product ✔️
 - Search product using keyword 🚧
 - Random variant support 🚧
 - Proxy support 🚧

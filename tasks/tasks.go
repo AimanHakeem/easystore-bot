@@ -2,13 +2,48 @@ package tasks
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
+
+type Variant struct {
+	ID                int    `json:"id"`
+	Title             string `json:"title"`
+	SKU               string `json:"sku"`
+	Available         bool   `json:"available"`
+	InventoryQuantity int    `json:"inventory_quantity"`
+	IsEnabled         bool   `json:"is_enabled"`
+}
+
+type Product struct {
+	ID                              int       `json:"id"`
+	Handle                          string    `json:"handle"`
+	Name                            string    `json:"name"`
+	Title                           string    `json:"title"`
+	URL                             string    `json:"url"`
+	Price                           float64   `json:"price"`
+	Available                       bool      `json:"available"`
+	SoleVariantID                   int       `json:"sole_variant_id"`
+	Variants                        []Variant `json:"variants"`
+	SelectedVariant                 Variant   `json:"selected_variant"`
+	FirstAvailableVariant           Variant   `json:"first_available_variant"`
+	SelectedOrFirstAvailableVariant Variant   `json:"selected_or_first_available_variant"`
+	ImgURL                          string    `json:"img_url"`
+	PublishedAt                     string    `json:"published_at"`
+	CreatedAt                       string    `json:"created_at"`
+}
+
+type Collection struct {
+	Products []Product `json:"products"`
+}
 
 func fetchHTML(url string) (string, error) {
 	resp, err := http.Get(url)
@@ -29,16 +64,200 @@ func fetchHTML(url string) (string, error) {
 	return string(body), nil
 }
 
-func extractJavaScript(htmlContent string) (string, error) {
-	re := regexp.MustCompile(`const collection = ({.*})`)
-	match := re.FindStringSubmatch(htmlContent)
+func extractJavaScript(htmlContent string, isDirectLink bool) (string, error) {
+	var re *regexp.Regexp
+	if isDirectLink {
+		re = regexp.MustCompile(`const product = ({.*})`)
+	} else {
+		re = regexp.MustCompile(`const collection = ({.*})`)
+	}
 
+	match := re.FindStringSubmatch(htmlContent)
 	if len(match) < 2 {
 		return "", fmt.Errorf("failed to find product endpoint")
 	}
 
 	return match[1], nil
 }
+
+func searchProducts(collection Collection, keywordQuery string) *Product {
+	var matchedProducts []Product
+
+	// Comma untuk split keywords ("OR")
+	orConditions := strings.Split(keywordQuery, ",")
+
+	for _, product := range collection.Products {
+		//Skip soldout products
+		if !product.Available {
+			continue
+		}
+
+		productName := strings.ToLower(product.Name)
+		productMatches := false
+
+		// Kalau ada split keyword means dia OR
+		for _, orCondition := range orConditions {
+			andConditions := strings.Split(orCondition, "&")
+			andMatches := true
+
+			// Check AND condition dalam OR (,)
+			for _, andCondition := range andConditions {
+				keyword := strings.TrimSpace(andCondition)
+				if !strings.Contains(productName, keyword) {
+					andMatches = false
+					break
+				}
+			}
+
+			if andMatches {
+				productMatches = true
+				break
+			}
+		}
+
+		if productMatches {
+			matchedProducts = append(matchedProducts, product)
+		}
+	}
+	if len(matchedProducts) > 0 {
+		highestIDProduct := matchedProducts[0]
+		for _, product := range matchedProducts {
+			if product.ID > highestIDProduct.ID {
+				highestIDProduct = product
+			}
+		}
+		return &highestIDProduct
+	}
+
+	return nil
+}
+
+func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	startTime := time.Now()
+
+	nullableFields := map[string]bool{
+		"cardno":     true,
+		"expirydate": true,
+		"cvv":        true,
+	}
+
+	validationFailed := false
+	for key, value := range task {
+		if !nullableFields[key] && value == "" {
+			fmt.Printf("Validation error: %s cannot be null in task: %v\n", key, task)
+			validationFailed = true
+			break
+		}
+	}
+	if validationFailed {
+		return
+	}
+
+	link, err := GetSiteLink(task["site"])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	productlink, err := GetProductLink(task["site"])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	provincesLink := fmt.Sprintf("%s/sf/countries/MY/provinces", link)
+	err = LoadProvinces(provincesLink)
+	if err != nil {
+		fmt.Println("Error loading provinces:", err)
+		return
+	}
+
+	provinceCode, err := GetProvinceCode(task["state"])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	task["state"] = provinceCode
+
+	isDirectLink := strings.HasPrefix(task["keyword"], "https")
+	var htmlContent string
+	var retryAttempts int
+	delay, err := strconv.Atoi(task["delay"])
+	if err != nil {
+		fmt.Printf("Delay Error: %v", err)
+	}
+
+	for {
+		if isDirectLink {
+			htmlContent, err = fetchHTML(task["keyword"])
+		} else {
+			htmlContent, err = fetchHTML(productlink)
+		}
+
+		if err != nil {
+			if strings.Contains(err.Error(), "received non-200 response") {
+				fmt.Printf("[Task %d][%s]Product not loaded yet.\n", idx+1, task["site"])
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+				continue
+			} else {
+				fmt.Printf("Failed to fetch HTML content for site %s: %v\n", task["site"], err)
+				break
+			}
+		}
+
+		scriptContent, err := extractJavaScript(htmlContent, isDirectLink)
+		if err != nil {
+			fmt.Printf("Failed to find JavaScript object for site %s: %v\n", task["site"], err)
+			break
+		}
+
+		if isDirectLink {
+			//using directlink from keyword field
+			var product Product
+			err = json.Unmarshal([]byte(scriptContent), &product)
+			if err != nil {
+				fmt.Printf("Failed to unmarshal JSON for site %s: %v\n", task["site"], err)
+				break
+			}
+			if !product.Available {
+				fmt.Printf("[Task %d][Product Found][OOS][%s] %s \n", idx+1, task["site"], product.Name)
+				retryAttempts++
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+				continue
+			}
+			fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], product.Name)
+		} else {
+			//using keyword matching
+			var collection Collection
+			err = json.Unmarshal([]byte(scriptContent), &collection)
+			if err != nil {
+				fmt.Printf("Failed to unmarshal JSON for site %s: %v\n", task["site"], err)
+				break
+			}
+			keywords := task["keyword"]
+			matchedProducts := searchProducts(collection, keywords)
+
+			if matchedProducts == nil {
+				fmt.Printf("[Task %d][Product not found][%s] keywords: %v\n", idx+1, task["site"], keywords)
+				retryAttempts++
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+				continue
+			} else {
+				fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], matchedProducts.Name)
+			}
+		}
+
+		// If successfully processed, break the retry loop
+		break
+	}
+
+	duration := time.Since(startTime)
+	fmt.Printf("[Task %d]Execution time: %s, Site: %s\n", idx+1, duration, task["site"])
+
+}
+
 func RunTasks() {
 	err := LoadSites()
 	if err != nil {
@@ -61,65 +280,16 @@ func RunTasks() {
 	}
 
 	headers := records[0]
-	nullableFields := map[string]bool{
-		"cardno":     true,
-		"expirydate": true,
-		"cvv":        true,
-	}
+
+	var wg sync.WaitGroup
 
 	for idx, record := range records[1:] {
-		startTime := time.Now()
 		task := make(map[string]string)
 		for i, header := range headers {
 			task[header] = record[i]
 		}
-
-		validationFailed := false
-		for key, value := range task {
-			if !nullableFields[key] && value == "" {
-				fmt.Printf("Validation error: %s cannot be null in task: %v\n", key, task)
-				validationFailed = true
-				break
-			}
-		}
-		if validationFailed {
-			continue
-		}
-
-		link, err := GetSiteLink(task["site"])
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		provincesLink := fmt.Sprintf("%s/sf/countries/MY/provinces", link)
-		err = LoadProvinces(provincesLink)
-		if err != nil {
-			fmt.Println("Error loading provinces:", err)
-			continue
-		}
-
-		provinceCode, err := GetProvinceCode(task["state"])
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		task["state"] = provinceCode
-
-		htmlContent, err := fetchHTML(link)
-		if err != nil {
-			fmt.Printf("Failed to fetch HTML content for site %s: %v\n", task["site"], err)
-			continue
-		}
-
-		scriptContent, err := extractJavaScript(htmlContent)
-		if err != nil {
-			fmt.Printf("Failed to extract JavaScript for site %s: %v\n", task["site"], err)
-			continue
-		}
-		fmt.Printf("Extracted Collection Data: %+v\n", scriptContent)
-		duration := time.Since(startTime)
-		fmt.Printf("[Task %d]Execution time: %s \n", idx+1, duration)
+		wg.Add(1)
+		go processTask(idx, task, &wg)
 	}
+	wg.Wait()
 }

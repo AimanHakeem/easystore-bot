@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"regexp"
@@ -132,6 +133,37 @@ func searchProducts(collection Collection, keywordQuery string) *Product {
 	return nil
 }
 
+func findVariant(product Product, size string) (*Variant, error) {
+	// Pick random avilable size.
+	if size == "RA" {
+		var availableVariants []Variant
+		for _, variant := range product.Variants {
+			if variant.Available {
+				availableVariants = append(availableVariants, variant)
+			}
+		}
+		if len(availableVariants) == 0 {
+			return nil, fmt.Errorf("no available variants found for product %s", product.Name)
+		}
+
+		// Create a new random source and random generator
+		randSrc := rand.NewSource(time.Now().UnixNano())
+		r := rand.New(randSrc)
+
+		// Pick a random variant
+		randomIndex := r.Intn(len(availableVariants))
+		return &availableVariants[randomIndex], nil
+	}
+
+	// Pick specific variant
+	for _, variant := range product.Variants {
+		if strings.EqualFold(variant.Title, size) {
+			return &variant, nil
+		}
+	}
+	return nil, fmt.Errorf("variant with size %s not found", size)
+}
+
 func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	startTime := time.Now()
@@ -222,12 +254,20 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 				break
 			}
 			if !product.Available {
-				fmt.Printf("[Task %d][Product Found][OOS][%s] %s \n", idx+1, task["site"], product.Name)
+				fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], product.Name)
 				retryAttempts++
 				time.Sleep(time.Duration(delay) * time.Millisecond)
 				continue
 			}
 			fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], product.Name)
+			variant, err := findVariant(product, task["size"])
+			if err != nil {
+				fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], product.Name)
+				retryAttempts++
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+				continue
+			}
+			fmt.Printf("[Task %d][Variant found][%s] %s \n", idx+1, task["site"], variant.Title)
 		} else {
 			//using keyword matching
 			var collection Collection
@@ -237,15 +277,30 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 				break
 			}
 			keywords := task["keyword"]
-			matchedProducts := searchProducts(collection, keywords)
+			matchedProduct := searchProducts(collection, keywords)
+			if !matchedProduct.Available {
+				fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
+				retryAttempts++
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+				continue
+			}
 
-			if matchedProducts == nil {
+			if matchedProduct == nil {
 				fmt.Printf("[Task %d][Product not found][%s] keywords: %v\n", idx+1, task["site"], keywords)
 				retryAttempts++
 				time.Sleep(time.Duration(delay) * time.Millisecond)
 				continue
 			} else {
-				fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], matchedProducts.Name)
+				fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
+
+				variant, err := findVariant(*matchedProduct, task["size"])
+				if err != nil {
+					fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
+					retryAttempts++
+					time.Sleep(time.Duration(delay) * time.Millisecond)
+					continue
+				}
+				fmt.Printf("[Task %d][Variant Found][%s] %s, Variant: %s \n", idx+1, task["site"], matchedProduct.Name, variant.Title)
 			}
 		}
 

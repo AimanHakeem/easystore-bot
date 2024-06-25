@@ -6,8 +6,8 @@ This project features a program designed to automate the checkout process on Eas
 
 - Product endpoint response ✔️
 - Monitoring product ✔️
-- Search product using keyword 🚧
-- Random variant support 🚧
+- Search product using keyword ✔️
+- Random variant support ✔️
 - Proxy support 🚧
 - Checkout link mode 🚧
 - Card Checkout 🚧

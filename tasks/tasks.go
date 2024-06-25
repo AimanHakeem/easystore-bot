@@ -166,7 +166,7 @@ func handleDirectLink(task map[string]string, scriptContent string, idx int) (*V
 		return nil, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
 	}
 	if !product.Available {
-		fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], product.Name)
+		fmt.Printf("[Task %d][OOS][%s] %s | Waiting For Restock\n", idx+1, task["site"], product.Name)
 		return nil, nil
 	}
 	fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], product.Name)
@@ -176,6 +176,7 @@ func handleDirectLink(task map[string]string, scriptContent string, idx int) (*V
 		return nil, nil
 	}
 	fmt.Printf("[Task %d][Variant found][%s] %s \n", idx+1, task["site"], variant.Title)
+
 	return variant, nil
 }
 
@@ -193,7 +194,7 @@ func handleKeywordMatching(task map[string]string, scriptContent string, idx int
 		return nil, nil
 	}
 	if !matchedProduct.Available {
-		fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
+		fmt.Printf("[Task %d][OOS][%s] %s | Waiting For Restock\n", idx+1, task["site"], matchedProduct.Name)
 		return nil, nil
 	}
 
@@ -243,10 +244,17 @@ func addToCart(link string, variantID int, quantity string, xsrfToken string, cl
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("received non-200 response: %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyString := string(bodyBytes)
+		return fmt.Errorf("received non-200 response: %d, response body: %s", resp.StatusCode, bodyString)
 	}
 
-	fmt.Printf("Variant %d added to cart successfully.\n", variantID)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+	bodyString := string(bodyBytes)
+	fmt.Printf("Variant %d added to cart successfully. Response: %s\n", variantID, bodyString)
 	return nil
 }
 

@@ -1,12 +1,14 @@
 package tasks
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"regexp"
 	"strconv"
@@ -46,23 +48,24 @@ type Collection struct {
 	Products []Product `json:"products"`
 }
 
-func fetchHTML(url string) (string, error) {
-	resp, err := http.Get(url)
+func fetchHTML(url string, client *http.Client) (string, *http.Response, error) {
+	resp, err := client.Get(url)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch URL: %w", err)
+		return "", nil, fmt.Errorf("failed to fetch URL: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("received non-200 response: %d", resp.StatusCode)
+		resp.Body.Close()
+		return "", resp, fmt.Errorf("received non-200 response: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
+		return "", resp, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	return string(body), nil
+	return string(body), resp, nil
 }
 
 func extractJavaScript(htmlContent string, isDirectLink bool) (string, error) {
@@ -87,9 +90,6 @@ func searchProducts(collection Collection, keywordQuery string) *Product {
 	orConditions := strings.Split(keywordQuery, ",")
 
 	for _, product := range collection.Products {
-		if !product.Available {
-			continue
-		}
 
 		productName := strings.ToLower(product.Name)
 		productMatches := false
@@ -145,48 +145,56 @@ func findVariant(product Product, size string) (*Variant, error) {
 		r := rand.New(randSrc)
 
 		randomIndex := r.Intn(len(availableVariants))
-		return &availableVariants[randomIndex], nil
+		selectedVariant := &availableVariants[randomIndex]
+		if selectedVariant.Available {
+			return selectedVariant, nil
+		}
 	}
 
 	for _, variant := range product.Variants {
-		if strings.EqualFold(variant.Title, size) {
+		if strings.EqualFold(variant.Title, size) && variant.Available {
 			return &variant, nil
 		}
 	}
 	return nil, fmt.Errorf("variant with size %s not found", size)
 }
 
-func handleDirectLink(task map[string]string, scriptContent string, idx int) (bool, error) {
+func handleDirectLink(task map[string]string, scriptContent string, idx int) (*Variant, error) {
 	var product Product
 	err := json.Unmarshal([]byte(scriptContent), &product)
 	if err != nil {
-		return false, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
+		return nil, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
 	}
 	if !product.Available {
 		fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], product.Name)
-		return false, nil
+		return nil, nil
 	}
 	fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], product.Name)
 	variant, err := findVariant(product, task["size"])
 	if err != nil {
 		fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], product.Name)
-		return false, nil
+		return nil, nil
 	}
 	fmt.Printf("[Task %d][Variant found][%s] %s \n", idx+1, task["site"], variant.Title)
-	return true, nil
+	return variant, nil
 }
 
-func handleKeywordMatching(task map[string]string, scriptContent string, idx int) (bool, error) {
+func handleKeywordMatching(task map[string]string, scriptContent string, idx int) (*Variant, error) {
 	var collection Collection
 	err := json.Unmarshal([]byte(scriptContent), &collection)
 	if err != nil {
-		return false, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
+		return nil, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
 	}
+
 	keywords := task["keyword"]
 	matchedProduct := searchProducts(collection, keywords)
-	if matchedProduct == nil || !matchedProduct.Available {
+	if matchedProduct == nil {
+		fmt.Printf("[Task %d][%s] No product matched / Product not loaded\n", idx+1, task["site"])
+		return nil, nil
+	}
+	if !matchedProduct.Available {
 		fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
-		return false, nil
+		return nil, nil
 	}
 
 	fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
@@ -194,10 +202,52 @@ func handleKeywordMatching(task map[string]string, scriptContent string, idx int
 	variant, err := findVariant(*matchedProduct, task["size"])
 	if err != nil {
 		fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
-		return false, nil
+		return nil, nil
 	}
 	fmt.Printf("[Task %d][Variant Found][%s] %s, Variant: %s \n", idx+1, task["site"], matchedProduct.Name, variant.Title)
-	return true, nil
+	return variant, nil
+}
+
+func extractXsrfToken(resp *http.Response) (string, error) {
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "XSRF-TOKEN" {
+			return cookie.Value, nil
+		}
+	}
+	return "", fmt.Errorf("XSRF-TOKEN not found in cookies")
+}
+
+func addToCart(link string, variantID int, quantity string, xsrfToken string, client *http.Client) error {
+	url := fmt.Sprintf("%v/cart/add?retrieve=true", link)
+	payload := map[string]interface{}{
+		"id":       variantID,
+		"quantity": quantity,
+		"_token":   xsrfToken,
+	}
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON payload: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return fmt.Errorf("failed to create POST request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-XSRF-TOKEN", xsrfToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send POST request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("received non-200 response: %d", resp.StatusCode)
+	}
+
+	fmt.Printf("Variant %d added to cart successfully.\n", variantID)
+	return nil
 }
 
 func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
@@ -251,17 +301,27 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 
 	isDirectLink := strings.HasPrefix(task["keyword"], "https")
 	var htmlContent string
+	var resp *http.Response
 	var retryAttempts int
 	delay, err := strconv.Atoi(task["delay"])
 	if err != nil {
 		fmt.Printf("Delay Error: %v", err)
 	}
 
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		fmt.Printf("Failed to create cookie jar: %v\n", err)
+		return
+	}
+	client := &http.Client{
+		Jar: jar,
+	}
+
 	for {
 		if isDirectLink {
-			htmlContent, err = fetchHTML(task["keyword"])
+			htmlContent, resp, err = fetchHTML(task["keyword"], client)
 		} else {
-			htmlContent, err = fetchHTML(productlink)
+			htmlContent, resp, err = fetchHTML(productlink, client)
 		}
 
 		if err != nil {
@@ -275,17 +335,23 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 			}
 		}
 
+		xsrfToken, err := extractXsrfToken(resp)
+		if err != nil {
+			fmt.Printf("Failed to extract XSRF token for site %s: %v\n", task["site"], err)
+			break
+		}
+
 		scriptContent, err := extractJavaScript(htmlContent, isDirectLink)
 		if err != nil {
 			fmt.Printf("Failed to find JavaScript object for site %s: %v\n", task["site"], err)
 			break
 		}
 
-		var success bool
+		var variant *Variant
 		if isDirectLink {
-			success, err = handleDirectLink(task, scriptContent, idx)
+			variant, err = handleDirectLink(task, scriptContent, idx)
 		} else {
-			success, err = handleKeywordMatching(task, scriptContent, idx)
+			variant, err = handleKeywordMatching(task, scriptContent, idx)
 		}
 
 		if err != nil {
@@ -293,12 +359,17 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 			break
 		}
 
-		if success {
-			break
-		} else {
-			retryAttempts++
-			time.Sleep(time.Duration(delay) * time.Millisecond)
+		if variant != nil {
+			err = addToCart(link, variant.ID, task["quantity"], xsrfToken, client)
+			if err != nil {
+				fmt.Printf("Failed to add variant to cart for site %s: %v\n", task["site"], err)
+			} else {
+				break
+			}
 		}
+
+		retryAttempts++
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 
 	duration := time.Since(startTime)
@@ -329,7 +400,6 @@ func RunTasks() {
 	headers := records[0]
 
 	var wg sync.WaitGroup
-	startTime := time.Now()
 
 	for idx, record := range records[1:] {
 		task := make(map[string]string)
@@ -338,10 +408,6 @@ func RunTasks() {
 		}
 		wg.Add(1)
 		go processTask(idx, task, &wg)
-		duration := time.Since(startTime)
-		fmt.Printf("Total Execution time: %s", duration)
 	}
-
 	wg.Wait()
-
 }

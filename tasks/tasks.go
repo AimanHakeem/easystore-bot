@@ -84,11 +84,9 @@ func extractJavaScript(htmlContent string, isDirectLink bool) (string, error) {
 func searchProducts(collection Collection, keywordQuery string) *Product {
 	var matchedProducts []Product
 
-	// Comma untuk split keywords ("OR")
 	orConditions := strings.Split(keywordQuery, ",")
 
 	for _, product := range collection.Products {
-		//Skip soldout products
 		if !product.Available {
 			continue
 		}
@@ -96,12 +94,10 @@ func searchProducts(collection Collection, keywordQuery string) *Product {
 		productName := strings.ToLower(product.Name)
 		productMatches := false
 
-		// Kalau ada split keyword means dia OR
 		for _, orCondition := range orConditions {
 			andConditions := strings.Split(orCondition, "&")
 			andMatches := true
 
-			// Check AND condition dalam OR (,)
 			for _, andCondition := range andConditions {
 				keyword := strings.TrimSpace(andCondition)
 				if !strings.Contains(productName, keyword) {
@@ -134,7 +130,6 @@ func searchProducts(collection Collection, keywordQuery string) *Product {
 }
 
 func findVariant(product Product, size string) (*Variant, error) {
-	// Pick random avilable size.
 	if size == "RA" {
 		var availableVariants []Variant
 		for _, variant := range product.Variants {
@@ -146,22 +141,63 @@ func findVariant(product Product, size string) (*Variant, error) {
 			return nil, fmt.Errorf("no available variants found for product %s", product.Name)
 		}
 
-		// Create a new random source and random generator
 		randSrc := rand.NewSource(time.Now().UnixNano())
 		r := rand.New(randSrc)
 
-		// Pick a random variant
 		randomIndex := r.Intn(len(availableVariants))
 		return &availableVariants[randomIndex], nil
 	}
 
-	// Pick specific variant
 	for _, variant := range product.Variants {
 		if strings.EqualFold(variant.Title, size) {
 			return &variant, nil
 		}
 	}
 	return nil, fmt.Errorf("variant with size %s not found", size)
+}
+
+func handleDirectLink(task map[string]string, scriptContent string, idx int) (bool, error) {
+	var product Product
+	err := json.Unmarshal([]byte(scriptContent), &product)
+	if err != nil {
+		return false, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
+	}
+	if !product.Available {
+		fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], product.Name)
+		return false, nil
+	}
+	fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], product.Name)
+	variant, err := findVariant(product, task["size"])
+	if err != nil {
+		fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], product.Name)
+		return false, nil
+	}
+	fmt.Printf("[Task %d][Variant found][%s] %s \n", idx+1, task["site"], variant.Title)
+	return true, nil
+}
+
+func handleKeywordMatching(task map[string]string, scriptContent string, idx int) (bool, error) {
+	var collection Collection
+	err := json.Unmarshal([]byte(scriptContent), &collection)
+	if err != nil {
+		return false, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
+	}
+	keywords := task["keyword"]
+	matchedProduct := searchProducts(collection, keywords)
+	if matchedProduct == nil || !matchedProduct.Available {
+		fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
+		return false, nil
+	}
+
+	fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
+
+	variant, err := findVariant(*matchedProduct, task["size"])
+	if err != nil {
+		fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
+		return false, nil
+	}
+	fmt.Printf("[Task %d][Variant Found][%s] %s, Variant: %s \n", idx+1, task["site"], matchedProduct.Name, variant.Title)
+	return true, nil
 }
 
 func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
@@ -245,72 +281,28 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 			break
 		}
 
+		var success bool
 		if isDirectLink {
-			//using directlink from keyword field
-			var product Product
-			err = json.Unmarshal([]byte(scriptContent), &product)
-			if err != nil {
-				fmt.Printf("Failed to unmarshal JSON for site %s: %v\n", task["site"], err)
-				break
-			}
-			if !product.Available {
-				fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], product.Name)
-				retryAttempts++
-				time.Sleep(time.Duration(delay) * time.Millisecond)
-				continue
-			}
-			fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], product.Name)
-			variant, err := findVariant(product, task["size"])
-			if err != nil {
-				fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], product.Name)
-				retryAttempts++
-				time.Sleep(time.Duration(delay) * time.Millisecond)
-				continue
-			}
-			fmt.Printf("[Task %d][Variant found][%s] %s \n", idx+1, task["site"], variant.Title)
+			success, err = handleDirectLink(task, scriptContent, idx)
 		} else {
-			//using keyword matching
-			var collection Collection
-			err = json.Unmarshal([]byte(scriptContent), &collection)
-			if err != nil {
-				fmt.Printf("Failed to unmarshal JSON for site %s: %v\n", task["site"], err)
-				break
-			}
-			keywords := task["keyword"]
-			matchedProduct := searchProducts(collection, keywords)
-			if !matchedProduct.Available {
-				fmt.Printf("[Task %d][OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
-				retryAttempts++
-				time.Sleep(time.Duration(delay) * time.Millisecond)
-				continue
-			}
-
-			if matchedProduct == nil {
-				fmt.Printf("[Task %d][Product not found][%s] keywords: %v\n", idx+1, task["site"], keywords)
-				retryAttempts++
-				time.Sleep(time.Duration(delay) * time.Millisecond)
-				continue
-			} else {
-				fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
-
-				variant, err := findVariant(*matchedProduct, task["size"])
-				if err != nil {
-					fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
-					retryAttempts++
-					time.Sleep(time.Duration(delay) * time.Millisecond)
-					continue
-				}
-				fmt.Printf("[Task %d][Variant Found][%s] %s, Variant: %s \n", idx+1, task["site"], matchedProduct.Name, variant.Title)
-			}
+			success, err = handleKeywordMatching(task, scriptContent, idx)
 		}
 
-		// If successfully processed, break the retry loop
-		break
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
+
+		if success {
+			break
+		} else {
+			retryAttempts++
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+		}
 	}
 
 	duration := time.Since(startTime)
 	fmt.Printf("[Task %d]Execution time: %s, Site: %s\n", idx+1, duration, task["site"])
-
 }
 
 func RunTasks() {
@@ -337,6 +329,7 @@ func RunTasks() {
 	headers := records[0]
 
 	var wg sync.WaitGroup
+	startTime := time.Now()
 
 	for idx, record := range records[1:] {
 		task := make(map[string]string)
@@ -345,6 +338,10 @@ func RunTasks() {
 		}
 		wg.Add(1)
 		go processTask(idx, task, &wg)
+		duration := time.Since(startTime)
+		fmt.Printf("Total Execution time: %s", duration)
 	}
+
 	wg.Wait()
+
 }

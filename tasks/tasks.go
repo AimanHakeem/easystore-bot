@@ -1,7 +1,6 @@
 package tasks
 
 import (
-	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -218,46 +217,6 @@ func extractXsrfToken(resp *http.Response) (string, error) {
 	return "", fmt.Errorf("XSRF-TOKEN not found in cookies")
 }
 
-func addToCart(link string, variantID int, quantity string, xsrfToken string, client *http.Client) error {
-	url := fmt.Sprintf("%v/cart/add?retrieve=true", link)
-	payload := map[string]interface{}{
-		"id":       variantID,
-		"quantity": quantity,
-		"_token":   xsrfToken,
-	}
-	jsonPayload, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal JSON payload: %w", err)
-	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
-	if err != nil {
-		return fmt.Errorf("failed to create POST request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-XSRF-TOKEN", xsrfToken)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send POST request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		bodyString := string(bodyBytes)
-		return fmt.Errorf("received non-200 response: %d, response body: %s", resp.StatusCode, bodyString)
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
-	}
-	bodyString := string(bodyBytes)
-	fmt.Printf("Variant %d added to cart successfully. Response: %s\n", variantID, bodyString)
-	return nil
-}
-
 func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	startTime := time.Now()
@@ -366,14 +325,19 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 			fmt.Println(err)
 			break
 		}
-
 		if variant != nil {
-			err = addToCart(link, variant.ID, task["quantity"], xsrfToken, client)
+			cartToken, err := addToCart(link, variant.ID, task["quantity"], xsrfToken, client, idx)
 			if err != nil {
 				fmt.Printf("Failed to add variant to cart for site %s: %v\n", task["site"], err)
-			} else {
-				break
 			}
+			fmt.Printf("Cart token: %s\n", cartToken)
+			shippingRate, err := getShippingRate(idx, link, client, cartToken, task["address_line1"], task["zipcode"], task["city"], provinceCode, xsrfToken)
+			if err != nil {
+				fmt.Printf("Failed to get shipping rate: %v \n", err)
+			}
+
+			// checkout , err := getCheckoutLink(idx, link, client, cartToken, shippingRate, )
+			break
 		}
 
 		retryAttempts++

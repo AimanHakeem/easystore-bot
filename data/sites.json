@@ -3,25 +3,29 @@
       "site": "clairvoyant",
       "link": "https://byclairvoyant.com",
       "productlink": "https://byclairvoyant.com/collections/feature-on-homepage",
-      "paymentMethod": ""
+      "paymentCategory": "gateway",
+      "gatewayHandle": "billplz_other_billplz"
     },
     {
       "site": "peakkl",
       "link": "https://www.peakkl.com",
       "productlink": "https://www.peakkl.com/collections/collection",
-      "paymentMethod": ""
+      "paymentCategory": "gateway",
+      "gatewayHandle": "billplz_other_billplz"
     },
     {
       "site": "opt",
       "link": "https://www.oneplustwo.my",
       "productlink": "https://www.oneplustwo.my/collections/all-products",
-      "paymentMethod": ""
+      "paymentCategory": "gateway",
+      "gatewayHandle": "billplz_other_billplz"
     },
     {
       "site": "ryw",
       "link": "https://www.rywofficial.com",
       "productlink": "https://www.rywofficial.com/collections/new-arrivals",
-      "paymentMethod": ""
+      "paymentCategory": "card",
+      "gatewayHandle": "ipay88_cc_ipay88"
     }
   ]
   

@@ -43,6 +43,12 @@ type Product struct {
 	CreatedAt                       string    `json:"created_at"`
 }
 
+type ProductDetail struct {
+	Name   string
+	Price  float64
+	ImgUrl string
+}
+
 type Collection struct {
 	Products []Product `json:"products"`
 }
@@ -158,43 +164,49 @@ func findVariant(product Product, size string) (*Variant, error) {
 	return nil, fmt.Errorf("variant with size %s not found", size)
 }
 
-func handleDirectLink(task map[string]string, scriptContent string, idx int) (*Variant, error) {
+func handleDirectLink(task map[string]string, scriptContent string, idx int) (*Variant, []ProductDetail, error) {
 	var product Product
 	err := json.Unmarshal([]byte(scriptContent), &product)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
+		return nil, nil, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
 	}
 	if !product.Available {
 		fmt.Printf("[Task %d][OOS][%s] %s | Waiting For Restock\n", idx+1, task["site"], product.Name)
-		return nil, nil
+		return nil, nil, nil
 	}
 	fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], product.Name)
 	variant, err := findVariant(product, task["size"])
 	if err != nil {
 		fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], product.Name)
-		return nil, nil
+		return nil, nil, nil
 	}
 	fmt.Printf("[Task %d][Variant found][%s] %s \n", idx+1, task["site"], variant.Title)
 
-	return variant, nil
+	productDetail := ProductDetail{
+		Name:   product.Name,
+		Price:  product.Price,
+		ImgUrl: product.ImgURL,
+	}
+	productArray := []ProductDetail{productDetail}
+	return variant, productArray, nil
 }
 
-func handleKeywordMatching(task map[string]string, scriptContent string, idx int) (*Variant, error) {
+func handleKeywordMatching(task map[string]string, scriptContent string, idx int) (*Variant, []ProductDetail, error) {
 	var collection Collection
 	err := json.Unmarshal([]byte(scriptContent), &collection)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
+		return nil, nil, fmt.Errorf("failed to unmarshal JSON for site %s: %w", task["site"], err)
 	}
 
 	keywords := task["keyword"]
 	matchedProduct := searchProducts(collection, keywords)
 	if matchedProduct == nil {
 		fmt.Printf("[Task %d][%s] No product matched / Product not loaded\n", idx+1, task["site"])
-		return nil, nil
+		return nil, nil, nil
 	}
 	if !matchedProduct.Available {
 		fmt.Printf("[Task %d][OOS][%s] %s | Waiting For Restock\n", idx+1, task["site"], matchedProduct.Name)
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	fmt.Printf("[Task %d][Product Found][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
@@ -202,10 +214,16 @@ func handleKeywordMatching(task map[string]string, scriptContent string, idx int
 	variant, err := findVariant(*matchedProduct, task["size"])
 	if err != nil {
 		fmt.Printf("[Task %d][Variant OOS][%s] %s \n", idx+1, task["site"], matchedProduct.Name)
-		return nil, nil
+		return nil, nil, nil
 	}
 	fmt.Printf("[Task %d][Variant Found][%s] %s, Variant: %s \n", idx+1, task["site"], matchedProduct.Name, variant.Title)
-	return variant, nil
+	productDetail := ProductDetail{
+		Name:   matchedProduct.Name,
+		Price:  matchedProduct.Price,
+		ImgUrl: matchedProduct.ImgURL,
+	}
+	productArray := []ProductDetail{productDetail}
+	return variant, productArray, nil
 }
 
 func extractXsrfToken(resp *http.Response) (string, error) {
@@ -246,6 +264,12 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 	}
 
 	productlink, err := GetProductLink(task["site"])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	paymentCategory, gatewayHandle, err := GetPaymentGateway(task["site"])
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -315,10 +339,11 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 		}
 
 		var variant *Variant
+		var productDetail []ProductDetail
 		if isDirectLink {
-			variant, err = handleDirectLink(task, scriptContent, idx)
+			variant, productDetail, err = handleDirectLink(task, scriptContent, idx)
 		} else {
-			variant, err = handleKeywordMatching(task, scriptContent, idx)
+			variant, productDetail, err = handleKeywordMatching(task, scriptContent, idx)
 		}
 
 		if err != nil {
@@ -330,13 +355,19 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 			if err != nil {
 				fmt.Printf("Failed to add variant to cart for site %s: %v\n", task["site"], err)
 			}
-			fmt.Printf("Cart token: %s\n", cartToken)
 			shippingRate, err := getShippingRate(idx, link, client, cartToken, task["address_line1"], task["zipcode"], task["city"], provinceCode, xsrfToken)
 			if err != nil {
 				fmt.Printf("Failed to get shipping rate: %v \n", err)
 			}
 
-			// checkout , err := getCheckoutLink(idx, link, client, cartToken, shippingRate, )
+			checkout, err := getCheckoutLink(link, client, cartToken, xsrfToken, shippingRate, task["firstname"], task["lastname"], task["email"], task["phone"], task["address_line1"], task["address_line2"], task["zipcode"], task["city"], provinceCode, paymentCategory, gatewayHandle)
+			if err != nil {
+				fmt.Printf("[Task %d][Checkout Failed] \n", idx+1)
+			}
+
+			for _, detail := range productDetail {
+				fmt.Printf("[Task %d][Checkout Success] Name: %s, Price: %.2f, Image URL: %s Checkout Link: %v\n", idx+1, detail.Name, detail.Price, detail.ImgUrl, checkout)
+			}
 			break
 		}
 

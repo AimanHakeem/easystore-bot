@@ -7,9 +7,11 @@ import (
 )
 
 type Site struct {
-	Site        string `json:"site"`
-	Link        string `json:"link"`
-	ProductLink string `json:"productlink"`
+	Site            string `json:"site"`
+	Link            string `json:"link"`
+	ProductLink     string `json:"productlink"`
+	PaymentCategory string `json:"paymentCategory"`
+	GatewayHandle   string `json:"gatewayHandle"`
 }
 
 var sites []Site
@@ -43,4 +45,13 @@ func GetProductLink(siteName string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("JSON Product endpoint not found: %s", siteName)
+}
+
+func GetPaymentGateway(siteName string) (string, string, error) {
+	for _, site := range sites {
+		if site.Site == siteName {
+			return site.PaymentCategory, site.GatewayHandle, nil
+		}
+	}
+	return "", "", fmt.Errorf("failed to fetch paymentgateway: %s", siteName)
 }

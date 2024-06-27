@@ -9,8 +9,8 @@ This project features a program designed to automate the checkout process on Eas
 - Search product using keyword ✔️
 - Random variant support ✔️
 - Proxy support 🚧
-- Checkout link mode 🚧
-- Card Checkout 🚧
+- Checkout link mode ✔️
+- Card Checkout 🚧 (All checkout link for Easystore , no autocheckout for cards 😭)
 - Database logging 🚧
 
 ## Contributions

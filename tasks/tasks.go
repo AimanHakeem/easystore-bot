@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/http/cookiejar"
@@ -263,6 +264,8 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 		return
 	}
 
+	discordWebhook := GetDiscordWebhook()
+
 	productlink, err := GetProductLink(task["site"])
 	if err != nil {
 		fmt.Println(err)
@@ -366,7 +369,11 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 			}
 
 			for _, detail := range productDetail {
-				fmt.Printf("[Task %d][Checkout Success] Name: %s, Price: %.2f, Image URL: %s Checkout Link: %v\n", idx+1, detail.Name, detail.Price, detail.ImgUrl, checkout)
+				fmt.Printf("[Task %d][Checkout Success] Name: %s, Variant: %s, Price: %.2f, Image URL: %s Checkout Link: %v\n", idx+1, detail.Name, variant.Title, detail.Price, detail.ImgUrl, checkout)
+				err := postToDiscord(idx, detail.Name, variant.Title, detail.Price, detail.ImgUrl, checkout, discordWebhook)
+				if err != nil {
+					fmt.Printf("[Task %d][Post Webhook Failed] %v", idx+1, err)
+				}
 			}
 			break
 		}
@@ -383,6 +390,12 @@ func RunTasks() {
 	err := LoadSites()
 	if err != nil {
 		fmt.Println("Error loading sites:", err)
+		return
+	}
+
+	err = LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
 		return
 	}
 

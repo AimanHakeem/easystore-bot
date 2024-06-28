@@ -11,83 +11,36 @@ import (
 	"strings"
 )
 
-type Currency struct {
-	Code              string `json:"code"`
-	Rate              string `json:"rate"`
-	FormatPrefix      string `json:"format_prefix"`
-	FormatSuffix      string `json:"format_suffix"`
-	FormatDecimals    int    `json:"format_decimals"`
-	ThousandSeparator string `json:"thousand_separator"`
-	Name              string `json:"name"`
-}
-
 type Item struct {
-	ID                           int      `json:"id"`
-	ProductID                    int      `json:"product_id"`
-	VariantID                    int      `json:"variant_id"`
-	ProductName                  string   `json:"product_name"`
-	VariantName                  string   `json:"variant_name"`
-	SKU                          string   `json:"sku"`
-	Barcode                      string   `json:"barcode"`
-	CostPrice                    string   `json:"cost_price"`
-	TotalDiscount                string   `json:"total_discount"`
-	Grams                        string   `json:"grams"`
-	Width                        string   `json:"width"`
-	Height                       string   `json:"height"`
-	Length                       string   `json:"length"`
-	Quantity                     int      `json:"quantity"`
-	Taxable                      bool     `json:"taxable"`
-	ShippingRequired             bool     `json:"shipping_required"`
-	TotalTax                     string   `json:"total_tax"`
-	IsCustomPrice                bool     `json:"is_custom_price"`
-	InventoryManagement          string   `json:"inventory_management"`
-	BarcodeImage                 string   `json:"barcode_image"`
-	Properties                   []string `json:"properties"`
-	Brands                       string   `json:"brands"`
-	Tags                         string   `json:"tags"`
-	Handle                       string   `json:"handle"`
-	OriginalLinePrice            string   `json:"original_line_price"`
-	FinalLinePrice               string   `json:"final_line_price"`
-	ImageURL                     string   `json:"image_url"`
-	LineLevelDiscountAllocations []string `json:"line_level_discount_allocations"`
-	LineLevelTotalDiscount       int      `json:"line_level_total_discount"`
-	Name                         string   `json:"name"`
-	URL                          string   `json:"url"`
-	OriginalPrice                string   `json:"original_price"`
-	Collections                  []string `json:"collections"`
-	Vendor                       string   `json:"vendor"`
-	IsQuantityEditable           bool     `json:"is_quantity_editable"`
+	ID          int    `json:"id"`
+	ProductID   int    `json:"product_id"`
+	VariantID   int    `json:"variant_id"`
+	ProductName string `json:"product_name"`
+	VariantName string `json:"variant_name"`
+	Quantity    int    `json:"quantity"`
 }
 
 type CartResponse struct {
-	ID                 int      `json:"id"`
-	Token              string   `json:"token"`
-	OrderToken         string   `json:"order_token"`
-	CustomerID         *int     `json:"customer_id"`
-	ItemCount          int      `json:"item_count"`
-	Items              []Item   `json:"items"`
-	ItemsSubtotalPrice string   `json:"items_subtotal_price"`
-	OriginalTotalPrice string   `json:"original_total_price"`
-	TaxesIncluded      bool     `json:"taxes_included"`
-	TotalDiscount      string   `json:"total_discount"`
-	TotalPrice         string   `json:"total_price"`
-	TotalWeight        string   `json:"total_weight"`
-	Currency           Currency `json:"currency"`
+	ID                 int    `json:"id"`
+	Token              string `json:"token"`
+	OrderToken         string `json:"order_token"`
+	CustomerID         *int   `json:"customer_id"`
+	ItemCount          int    `json:"item_count"`
+	Items              []Item `json:"items"`
+	ItemsSubtotalPrice string `json:"items_subtotal_price"`
+	OriginalTotalPrice string `json:"original_total_price"`
+	TaxesIncluded      bool   `json:"taxes_included"`
+	TotalDiscount      string `json:"total_discount"`
+	TotalPrice         string `json:"total_price"`
+	TotalWeight        string `json:"total_weight"`
 }
 
 type ShippingRateResponse struct {
 	Checkout struct {
 		SelectedShippingMethod struct {
-			ID           int    `json:"id"`
-			Handle       string `json:"handle"`
-			Title        string `json:"title"`
-			Price        string `json:"price"`
-			TotalPrice   string `json:"total_price"`
-			ImageURL     string `json:"image_url"`
-			FreeMinPrice string `json:"free_min_price"`
-			CodMinAmount string `json:"cod_min_amount"`
-			CodMaxAmount string `json:"cod_max_amount"`
-			CodType      int    `json:"cod_type"`
+			ID     int    `json:"id"`
+			Handle string `json:"handle"`
+			Title  string `json:"title"`
 		} `json:"selected_shipping_method"`
 	} `json:"checkout"`
 }
@@ -286,7 +239,5 @@ func getCheckoutLink(link string, client *http.Client, cartToken string, xsrfTok
 		return "", fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	checkoutUrl := checkoutLink.CheckoutURL
-
-	return checkoutUrl, nil
+	return checkoutLink.CheckoutURL, nil
 }

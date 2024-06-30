@@ -369,7 +369,10 @@ func processTask(idx int, task map[string]string, wg *sync.WaitGroup) {
 			}
 
 			for _, detail := range productDetail {
-				fmt.Printf("[Task %d][Checkout Success] Name: %s, Variant: %s, Price: %.2f, Image URL: %s Checkout Link: %v\n", idx+1, detail.Name, variant.Title, detail.Price, detail.ImgUrl, checkout)
+				fmt.Printf("[Task %d][Checkout Success] Product: %s | Variant: %s | Checkout Link: %v\n", idx+1, detail.Name, variant.Title, checkout)
+				if checkout == "" {
+					fmt.Printf("[Task %d][Checkout Failed] OOS On Checkout | Product: %s | Variant: %s", idx+1, detail.Name, variant.Title)
+				}
 				err := postToDiscord(idx, detail.Name, variant.Title, detail.Price, detail.ImgUrl, checkout, discordWebhook)
 				if err != nil {
 					fmt.Printf("[Task %d][Post Webhook Failed] %v", idx+1, err)

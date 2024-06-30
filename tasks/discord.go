@@ -78,11 +78,11 @@ func postToDiscord(idx int, productName string, variant string, price float64, i
 	}
 
 	embedTitle := productName
-	embedColor := 0x00FF00 // Green color
+	embedColor := 0x00FF00
 
 	if checkoutLink == "" {
 		embedTitle = "Checkout Failed!"
-		embedColor = 0xFF0000 // Red color
+		embedColor = 0xFF0000
 	} else {
 		fields = append(fields, Field{
 			Name:   "Checkout Link",
